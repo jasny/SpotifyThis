@@ -52,7 +52,7 @@ function spotifyLookup(uri, extras, callback) {
 }
 
 function apply(type, query, callback) {
-  if (type) type = type.replace(/^music\./, '');
+  if (type) type = type.replace(/^.*(\.|:)/, '');
   
   if (type == 'artist' || type == 'band') applyArtist(query, callback);
     else if (type == 'album') applyAlbum(query, callback);
