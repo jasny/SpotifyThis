@@ -1,11 +1,7 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+var spotifyResults = {};
 
-var spotifyLinks = {};
-
-function getWikipediaInfo(request, tab, callback) {
-  var match = /^(https?:\/\/.*?)\/wiki\/(.*)$/.exec(tab.url);
+function getWikipediaInfo(url, request, callback) {
+  var match = /^(https?:\/\/.*?)\/wiki\/(.*)$/.exec(url);
   if (!match) return;
 
   var host = match[1]
@@ -16,14 +12,14 @@ function getWikipediaInfo(request, tab, callback) {
   xhr.onreadystatechange = function() {
     if (xhr.readyState != 4) return;
 
-    if (xhr.responseText.match(/Infobox musical artist/)) {
-      callback(tab, 'artist', query);
-    } else if (xhr.responseText.match(/Infobox album/)) {
+    if (xhr.responseText.match(/Infobox musical artist/i)) {
+      callback('artist', query);
+    } else if (xhr.responseText.match(/Infobox album/i)) {
       var ma = /Artist\s*=\s*\[\[(.+?)\]\]/.exec(xhr.responseText);
-      callback(tab, 'album', query + (ma ? ' ' + ma[1] : ''));
-    } else if (xhr.responseText.match(/Infobox single/)) {
+      callback('album', query + (ma ? ' ' + ma[1] : ''));
+    } else if (xhr.responseText.match(/Infobox single/i)) {
       var mt = /Artist\s*=\s*\[\[(.+?)\]\]/.exec(xhr.responseText);
-      callback(tab, 'track', query + (mt ? ' ' + mt[1] : ''));
+      callback('track', query + (mt ? ' ' + mt[1] : ''));
     }
   }
   xhr.send();
@@ -55,86 +51,94 @@ function spotifyLookup(uri, extras, callback) {
   xhr.send();
 }
 
-function apply(tab, type, query) {
-  if (type == 'artist' || type == 'band') applyArtist(tab, query);
-    else if (type == 'album') applyAlbum(tab, query);
-    else if (type == 'track' || type == 'song') applyTrack(tab, query);
+function apply(type, query, callback) {
+  if (type) type = type.replace(/^music\./, '');
+  
+  if (type == 'artist' || type == 'band') applyArtist(query, callback);
+    else if (type == 'album') applyAlbum(query, callback);
+    else if (type == 'track' || type == 'song') applyTrack(query, callback);
+    else callback({});
 }
 
-function applyArtist(tab, query) {
+function applyArtist(query, callback) {
   spotifyFind('artist', query, function(resp) {
-    var artist = resp.artists[0];
+    var result = resp.artists[0];
     
-    setPageAction(tab, artist.href, artist.name);
-    
-    spotifyFind('track', artist.name, function(resp) {
-      var track
-        , result = {};
-      
+    spotifyFind('track', result.name, function(resp) {
       if (resp) {
-        for (var i=0; i<resp.tracks.length; i++) {
-          if (resp.tracks[i].artists[0].href == artist.href) {
-            track = resp.tracks[i];
+        for (var i=0; i < resp.tracks.length; i++) {
+          if (resp.tracks[i].artists[0].href == result.href) {
+            result.uri = resp.tracks[i].href;
             break;
           };
         }
-
-        result = { 'uri': track.href };
       }
       
-      chrome.tabs.sendMessage(tab.id, result);
+      callback(result);
     });
   });
 }
 
-function applyAlbum(tab, query) {
+function applyAlbum(query, callback) {
   spotifyFind('album', query, function(resp) {
     var result = {};
     
     if (resp && resp.albums[0]) {
-      var album = resp.albums[0];
-    
-      setPageAction(tab, album.href, album.name);
-      result = { 'uri': album.href };
+      result = resp.albums[0];
+      result.uri = resp.albums[0].href;
     }
     
-    chrome.tabs.sendMessage(tab.id, result);
+    callback(result);
   });
 }
 
-function applyTrack(tab, query) {
+function applyTrack(query, callback) {
   spotifyFind('track', query, function(resp) {
     var result = {};
     
     if (resp && resp.tracks[0]) {
-      var track = resp.tracks[0];
-    
-      setPageAction(tab, track.href, track.name);
-      result = { 'uri': track.href };
+      result = resp.tracks[0];
+      result.uri = resp.tracks[0].href;
     }
     
-    chrome.tabs.sendMessage(tab.id, result);
+    callback(result);
   });
 }
 
-function setPageAction(tab, href, title) {
-    spotifyLinks[tab.id] = href;
-    chrome.pageAction.setTitle({ 'tabId': tab.id, 'title': 'Listen to ' + title + ' on spotify'});
-    chrome.pageAction.show(tab.id);  
+function setPageAction(tabId, result) {
+    spotifyResults[tabId] = result;
+    
+    if (result.uri) {
+      chrome.pageAction.setTitle({ 'tabId': tabId, 'title': 'Listen to ' + result.name + ' on spotify'});
+      chrome.pageAction.show(tabId);
+    }
 }
 
-chrome.pageAction.onClicked.addListener(function(tab) {
-  if (spotifyLinks[tab.id]) {
-    var w = window.open(spotifyLinks[tab.id], 'width=100,height=100', '_blank');
+/*chrome.pageAction.onClicked.addListener(function(tab) {
+  if (spotifyResults[tab.id]) {
+    var w = window.open(spotifyResults[tab.id], 'width=100,height=100', '_blank');
     setInterval(function() { w.close(); }, 200);
   }
-});
+});*/
 
-// Called when a message is passed.  We assume that the content script
-// wants to show the page action.
-function onRequest(request, sender) {
-  if (request.site == 'wikipedia') getWikipediaInfo(request, sender.tab, apply);
-    else if (request.site == 'lastfm') apply(sender.tab, request.type, request.title);
+function onRequest(request, sender, sendResponse) {
+  if (request.site == 'wikipedia') {
+    getWikipediaInfo(sender.tab.url, request, function(type, name) {
+      apply(type, name, function(result) {
+        chrome.tabs.sendMessage(sender.tab.id, result);
+      });
+    });
+  } else if (request.site == 'lastfm') {
+    apply(request.type, request.title, function(result) {
+      chrome.tabs.sendMessage(sender.tab.id, result);
+    });
+  } else if (request.site == '*') {
+    apply(request.type, request.title, function(result) {
+      setPageAction(sender.tab.id, result);
+    });
+  }
+  
+  sendResponse({});
 };
 
 // Listen for the content script to send a message to the background page.

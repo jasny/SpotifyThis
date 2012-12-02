@@ -11,16 +11,32 @@
   "page_action" :
   {
     "default_icon" : "spofity-19.png",
-    "default_title" : "Listen to this on spotify"
+    "default_title" : "Listen to this on spotify",
+    "default_popup": "popup.html"
   },
   "content_scripts" : [
+    { "matches" : [
+        "http://*.wikipedia.org/*",
+        "https://*.wikipedia.org/*"
+      ],
+      "js" : ["cs_wikipedia.js"],
+      "run_at" : "document_idle",
+      "all_frames" : false
+    },
+    { "matches" : [
+        "http://*.last.fm/*",
+        "https://*.last.fm/*"
+      ],
+      "js" : ["cs_lastfm.js"],
+      "run_at" : "document_idle",
+      "all_frames" : false
+    },
     {
       "matches" : [
-        "http://*.wikipedia.org/*",
-        "https://*.wikipedia.org/*",
-        "http://*.last.fm/*"
+        "http://*/*",
+        "https://*/*"
       ],
-      "js" : ["contentscript.js"],
+      "js" : ["cs_general.js"],
       "run_at" : "document_idle",
       "all_frames" : false
     }
