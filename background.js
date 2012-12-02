@@ -33,10 +33,11 @@ function spotifyFind(type, query, callback) {
   var xhr = new XMLHttpRequest();
   xhr.open("GET", "http://ws.spotify.com/search/1/" + type + ".json?q=" + encodeURIComponent(query), true);
   xhr.onreadystatechange = function() {
-    if (xhr.readyState == 4) {
-      var resp = JSON.parse(xhr.responseText);
-      callback(resp);
-    }
+    if (xhr.readyState != 4) return;
+    
+    var resp;
+    if (xhr.status == 200) resp = JSON.parse(xhr.responseText);
+    callback(resp);
   }
   xhr.send();
 }
@@ -45,18 +46,19 @@ function spotifyLookup(uri, extras, callback) {
   var xhr = new XMLHttpRequest();
   xhr.open("GET", "http://ws.spotify.com/lookup/1/.json?uri=" + uri + (extras ? '&extras=' + extras : ''), true);
   xhr.onreadystatechange = function() {
-    if (xhr.readyState == 4) {
-      var resp = JSON.parse(xhr.responseText);
-      callback(resp);
-    }
+    if (xhr.readyState != 4) return;
+    
+    var resp;
+    if (xhr.status == 200) resp = JSON.parse(xhr.responseText);
+    callback(resp);
   }
   xhr.send();
 }
 
 function apply(tab, type, query) {
-  if (type == 'artist') applyArtist(tab, query);
+  if (type == 'artist' || type == 'band') applyArtist(tab, query);
     else if (type == 'album') applyAlbum(tab, query);
-    else applyTrack(tab, query);
+    else if (type == 'track' || type == 'song') applyTrack(tab, query);
 }
 
 function applyArtist(tab, query) {
@@ -66,35 +68,52 @@ function applyArtist(tab, query) {
     setPageAction(tab, artist.href, artist.name);
     
     spotifyFind('track', artist.name, function(resp) {
-      var track;
-          
-      for (var i=0; i<resp.tracks.length; i++) {
-        if (resp.tracks[i].artists[0].href == artist.href) {
-          track = resp.tracks[i];
-          break;
-        };
-      }
+      var track
+        , result = {};
+      
+      if (resp) {
+        for (var i=0; i<resp.tracks.length; i++) {
+          if (resp.tracks[i].artists[0].href == artist.href) {
+            track = resp.tracks[i];
+            break;
+          };
+        }
 
-      chrome.tabs.sendMessage(tab.id, { 'uri': track.href });
+        result = { 'uri': track.href };
+      }
+      
+      chrome.tabs.sendMessage(tab.id, result);
     });
   });
 }
 
 function applyAlbum(tab, query) {
   spotifyFind('album', query, function(resp) {
-    var album = resp.albums[0];
+    var result = {};
     
-    setPageAction(tab, album.href, album.name);
-    chrome.tabs.sendMessage(tab.id, { 'uri': album.href });
+    if (resp && resp.albums[0]) {
+      var album = resp.albums[0];
+    
+      setPageAction(tab, album.href, album.name);
+      result = { 'uri': album.href };
+    }
+    
+    chrome.tabs.sendMessage(tab.id, result);
   });
 }
 
 function applyTrack(tab, query) {
   spotifyFind('track', query, function(resp) {
-    var track = resp.tracks[0];
+    var result = {};
     
-    setPageAction(tab, track.href, track.name);
-    chrome.tabs.sendMessage(tab.id, { 'uri': track.href });
+    if (resp && resp.tracks[0]) {
+      var track = resp.tracks[0];
+    
+      setPageAction(tab, track.href, track.name);
+      result = { 'uri': track.href };
+    }
+    
+    chrome.tabs.sendMessage(tab.id, result);
   });
 }
 
@@ -114,9 +133,8 @@ chrome.pageAction.onClicked.addListener(function(tab) {
 // Called when a message is passed.  We assume that the content script
 // wants to show the page action.
 function onRequest(request, sender) {
-  if (request.type == 'wikipedia') {
-    getWikipediaInfo(request, sender.tab, apply);
-  }
+  if (request.site == 'wikipedia') getWikipediaInfo(request, sender.tab, apply);
+    else if (request.site == 'lastfm') apply(sender.tab, request.type, request.title);
 };
 
 // Listen for the content script to send a message to the background page.

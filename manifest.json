@@ -17,7 +17,8 @@
     {
       "matches" : [
         "http://*.wikipedia.org/*",
-        "https://*.wikipedia.org/*"
+        "https://*.wikipedia.org/*",
+        "http://*.last.fm/*"
       ],
       "js" : ["contentscript.js"],
       "run_at" : "document_idle",
