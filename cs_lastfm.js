@@ -19,7 +19,10 @@ chrome.extension.onMessage.addListener(function(response, sender) {
 
   var place = document.getElementsByClassName('user-actions')[0];
   var box = place.parentNode.insertBefore(document.createElement('div'), place);
-  box.innerHTML = '<iframe src="https://embed.spotify.com/?uri=' + encodeURIComponent(response.uri) + '" width="300" ' + (response.uri.match(/^spotify:album/) ? 'height="380"' : 'height="80"') + ' frameborder="0" allowtransparency="true">';
+
+  var content = '<iframe src="https://embed.spotify.com/?uri=' + encodeURIComponent(response.uri) + '" width="300" ' + (response.uri.match(/^spotify:album/) ? 'height="380"' : 'height="80"') + ' frameborder="0" allowtransparency="true">';
+  if (response.href.match(/^spotify:artist/)) content = content + '<div><a href="' + response.href + '"><b>Show ' + response.name + ' in Spotify</b></a></div>';
+  box.innerHTML = content;
 });
 
 chrome.extension.sendMessage({ 'site': 'lastfm', 'type': type, 'title': title });
