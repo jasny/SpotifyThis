@@ -11,3 +11,6 @@ whenever you browse an artist, album or track on your favorite websites.
 ## Spotify page popup ##
 For other websites that support OpenGraph a spotify icon is displayed in the address bar to show the play button in a
 popup.
+
+## Installation ##
+https://chrome.google.com/webstore/detail/spotify-this/occcmkpbdmbnjneheoenjdkaikbfdica
